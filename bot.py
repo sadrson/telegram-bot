@@ -1,54 +1,52 @@
-import telegram
-import schedule
-import asyncio
+import requests
 import time
+from flask import Flask
+from threading import Thread
 
-# === 🔐 Токен твоего бота ===
-TOKEN = "8274488039:AAEBT6A-NSFMINjrM1ZboPg8Iq7Eh-K-XK0"
+# === KEEP ALIVE ===
+app = Flask('')
 
-# === 💬 Chat ID (кому бот отправляет сообщение) ===
-CHAT_ID = 5364731536  # замени при необходимости на ID группы
+@app.route('/')
+def home():
+    return "I'm alive"
 
-# === 📨 Текст уведомления с кликабельной ссылкой ===
-# используем HTML-разметку, чтобы избежать ошибок Markdown
-MESSAGE_TEXT = (
-    'Прошу заполнить <a href="https://docs.google.com/forms/d/e/1FAIpQLSeG38n-P76ju46Zi6D4CHX8t6zfbxN506NupZboNeERhkT81A/viewform">'
-    'форму</a>, заявка принимается до 18:00'
-)
+def run():
+    app.run(host='0.0.0.0', port=8080)
 
-# Создаём экземпляр бота
-bot = telegram.Bot(token=TOKEN)
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
 
-# === Асинхронная функция для отправки сообщений ===
-async def send_message():
-    try:
-        await bot.send_message(
-            chat_id=CHAT_ID,
-            text=MESSAGE_TEXT,
-            parse_mode="HTML"  # используем HTML, чтобы избежать ошибок с Markdown
-        )
+# === ТВОЙ БОТ ===
+
+# 👉 Вставь сюда свой токен и chat_id
+BOT_TOKEN = "8274488039:AAEBT6A-NSFMINjrM1ZboPg8Iq7Eh-K-XK0"
+CHAT_ID = "-1003175445915"
+
+# Текст уведомления
+message = "🍕 Напоминание! Не забудь заполнить [форму](https://docs.google.com/forms/d/e/1FAIpQLSeG38n-P76ju46Zi6D4CHX8t6zfbxN506NupZboNeERhkT81A/viewform)."
+
+# === Функция отправки сообщения ===
+def send_message():
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    data = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
+    response = requests.post(url, data=data)
+    if response.ok:
         print("✅ Сообщение успешно отправлено!")
-    except Exception as e:
-        print(f"⚠️ Ошибка при отправке: {e}")
+    else:
+        print(f"⚠️ Ошибка при отправке: {response.text}")
 
-# === Планировщик задач ===
-def run_scheduler():
-    # Отправка в 15:00 в среду, пятницу и воскресенье
-    schedule.every().wednesday.at("15:00").do(lambda: asyncio.run(send_message()))
-    schedule.every().friday.at("15:00").do(lambda: asyncio.run(send_message()))
-    schedule.every().sunday.at("15:00").do(lambda: asyncio.run(send_message()))
-
-    # Тестовое сообщение при запуске
+# === ЗАПУСК ===
+def main():
+    keep_alive()  # <-- чтобы бот не засыпал на Replit
     print("🚀 Бот запущен, отправляю тестовое сообщение...")
-    asyncio.run(send_message())
-
+    send_message()
     print("🤖 Бот ждёт времени для следующих уведомлений...")
 
-    # Бесконечный цикл проверки расписания
+    # пример — отправлять раз в 24 часа:
     while True:
-        schedule.run_pending()
-        time.sleep(1)
+        time.sleep(24 * 60 * 60)
+        send_message()
 
-# === Точка входа ===
 if __name__ == "__main__":
-    run_scheduler()
+    main()
