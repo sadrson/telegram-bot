@@ -2,40 +2,44 @@ from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 import os
-import asyncio
 
-# === Настройки ===
-TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("BOT_TOKEN", "8274488039:AAEBT6A-NSFMINjrM1ZboPg8Iq7Eh-K-XK0")
 
-# === Flask-приложение ===
 app = Flask(__name__)
 
-# === Telegram Application ===
-application = Application.builder().token(TOKEN).build()
+# создаём Telegram приложение
+telegram_app = Application.builder().token(TOKEN).build()
 
-# === Команды ===
+
+# обработчик /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("✅ Бот успешно работает на Render!")
+    await update.message.reply_text("Привет! Бот запущен и работает 🚀")
 
+
+# обработчик обычных сообщений
 async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(update.message.text)
+    await update.message.reply_text(f"Ты написал: {update.message.text}")
 
-application.add_handler(CommandHandler("start", start))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
-# === Webhook endpoint ===
+# добавляем хендлеры
+telegram_app.add_handler(CommandHandler("start", start))
+telegram_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+
+
+# Flask webhook endpoint
 @app.route("/webhook", methods=["POST"])
-def webhook():
+async def webhook():
     data = request.get_json(force=True)
-    update = Update.de_json(data, application.bot)
-    asyncio.run(application.process_update(update))
+    update = Update.de_json(data, telegram_app.bot)
+    await telegram_app.process_update(update)
     return "ok", 200
 
-# === Проверочный маршрут ===
-@app.route("/", methods=["GET"])
+
+@app.route("/")
 def home():
-    return "Бот запущен 🚀", 200
+    return "Bot is running!", 200
+
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app
+    # запуск Flask (локально)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
