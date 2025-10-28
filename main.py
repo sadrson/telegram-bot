@@ -20,16 +20,25 @@ async def echo(update: Update, context):
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
+
 # === Webhook endpoint ===
 @app.route("/webhook", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
-    asyncio.run(application.process_update(update))
+
+    async def process():
+        if not application._initialized:
+            await application.initialize()
+        await application.process_update(update)
+
+    asyncio.run(process())
     return "ok", 200
+
 
 @app.route("/", methods=["GET"])
 def home():
     return "Бот запущен 🚀", 200
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
