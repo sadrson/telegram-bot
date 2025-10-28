@@ -22,15 +22,15 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
-# === Webhook endpoint ===
-@app.route("/", methods=["POST"])
+# === Webhook endpoint — Telegram присылает обновления ===
+@app.route("/webhook", methods=["POST"])
 def webhook():
     data = request.get_json(force=True)
     update = Update.de_json(data, application.bot)
     application.update_queue.put_nowait(update)
     return "ok", 200
 
-# === Проверка через браузер / UptimeRobot ===
+# === Проверочный маршрут для браузера и UptimeRobot ===
 @app.route("/", methods=["GET"])
 def home():
     return "Бот запущен 🚀", 200
@@ -38,3 +38,9 @@ def home():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
+
