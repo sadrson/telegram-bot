@@ -1,52 +1,41 @@
-import requests
-import time
-from flask import Flask
-from threading import Thread
+from flask import Flask, request
+from telegram import Bot, Update
+from telegram.ext import Dispatcher, CommandHandler, MessageHandler, filters
+import os
 
-# === KEEP ALIVE ===
-app = Flask('')
+# === Настройки ===
+TOKEN = os.getenv("BOT_TOKEN")  # токен хранится в Render → Environment → BOT_TOKEN
+bot = Bot(TOKEN)
 
-@app.route('/')
+# === Flask-приложение ===
+app = Flask(__name__)
+
+# === Диспетчер (обрабатывает сообщения) ===
+dispatcher = Dispatcher(bot, None, workers=0)
+
+# === Команды ===
+def start(update, context):
+    update.message.reply_text("✅ Бот запущен и работает на Render!")
+
+def echo(update, context):
+    update.message.reply_text(update.message.text)
+
+dispatcher.add_handler(CommandHandler("start", start))
+dispatcher.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+
+# === Webhook endpoint — сюда Telegram присылает обновления ===
+@app.route("/", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    dispatcher.process_update(update)
+    return "ok", 200
+
+# === Проверочный маршрут (для браузера и UptimeRobot) ===
+@app.route("/", methods=["GET"])
 def home():
-    return "I'm alive"
+    return "Бот запущен 🚀", 200
 
-def run():
-    app.run(host='0.0.0.0', port=8080)
-
-def keep_alive():
-    t = Thread(target=run)
-    t.start()
-
-# === ТВОЙ БОТ ===
-
-# 👉 Вставь сюда свой токен и chat_id
-BOT_TOKEN = "8274488039:AAEBT6A-NSFMINjrM1ZboPg8Iq7Eh-K-XK0"
-CHAT_ID = "-1003175445915"
-
-# Текст уведомления
-message = "🍕 Напоминание! Не забудь заполнить [форму](https://docs.google.com/forms/d/e/1FAIpQLSeG38n-P76ju46Zi6D4CHX8t6zfbxN506NupZboNeERhkT81A/viewform)."
-
-# === Функция отправки сообщения ===
-def send_message():
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    data = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
-    response = requests.post(url, data=data)
-    if response.ok:
-        print("✅ Сообщение успешно отправлено!")
-    else:
-        print(f"⚠️ Ошибка при отправке: {response.text}")
-
-# === ЗАПУСК ===
-def main():
-    keep_alive()  # <-- чтобы бот не засыпал на Replit
-    print("🚀 Бот запущен, отправляю тестовое сообщение...")
-    send_message()
-    print("🤖 Бот ждёт времени для следующих уведомлений...")
-
-    # пример — отправлять раз в 24 часа:
-    while True:
-        time.sleep(24 * 60 * 60)
-        send_message()
 
 if __name__ == "__main__":
-    main()
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
