@@ -4,11 +4,9 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import os
 import asyncio
 
-# === Настройки ===
 TOKEN = os.getenv("BOT_TOKEN")
 app = Flask(__name__)
 
-# === Инициализация Telegram Application ===
 application = Application.builder().token(TOKEN).build()
 
 async def start(update: Update, context):
@@ -20,7 +18,6 @@ async def echo(update: Update, context):
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
-# === Webhook endpoint ===
 @app.route("/webhook", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
@@ -28,7 +25,7 @@ def webhook():
     if not application._initialized:
         loop.run_until_complete(application.initialize())
     loop.create_task(application.process_update(update))
-    return "ok", 200  # Telegram сразу получает ответ
+    return "ok", 200
 
 @app.route("/", methods=["GET"])
 def home():
