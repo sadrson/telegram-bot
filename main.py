@@ -24,14 +24,11 @@ application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 @app.route("/webhook", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
-
-    async def process():
-        if not application._initialized:
-            await application.initialize()
-        await application.process_update(update)
-
-    asyncio.run(process())
-    return "ok", 200
+    loop = asyncio.get_event_loop()
+    if not application._initialized:
+        loop.run_until_complete(application.initialize())
+    loop.create_task(application.process_update(update))
+    return "ok", 200  # Telegram сразу получает ответ
 
 @app.route("/", methods=["GET"])
 def home():
