@@ -11,6 +11,8 @@ app = Flask(__name__)
 # === Инициализация Telegram Application ===
 application = Application.builder().token(TOKEN).build()
 
+# создаём event loop один раз при запуске
+loop = asyncio.get_event_loop()
 
 # === Обработчики ===
 async def start(update: Update, context):
@@ -22,7 +24,6 @@ async def echo(update: Update, context):
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
-
 # === Webhook endpoint ===
 @app.route("/webhook", methods=["POST"])
 def webhook():
@@ -31,21 +32,23 @@ def webhook():
         data = request.get_json(force=True)
         update = Update.de_json(data, application.bot)
 
-        # ⚡ Запускаем обработку асинхронно — не блокируем ответ Telegram
-        asyncio.create_task(application.process_update(update))
+        async def process_update():
+            if not application._initialized:
+                await application.initialize()
+            await application.process_update(update)
+
+        # Запускаем асинхронно в общем loop'е
+        loop.create_task(process_update())
 
     except Exception as e:
         print(f"Webhook error: {e}")
 
-    # ⚡ Возвращаем ответ сразу, чтобы не было 'Read timeout expired'
     return jsonify({"ok": True}), 200
-
 
 # === Главная страница ===
 @app.route("/", methods=["GET"])
 def home():
     return "Бот запущен 🚀", 200
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
