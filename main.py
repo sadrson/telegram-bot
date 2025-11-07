@@ -3,14 +3,25 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import os
 import asyncio
+import threading
 
 # === Настройки ===
 TOKEN = os.getenv("BOT_TOKEN")
 app = Flask(__name__)
 
-# === Инициализация Telegram Application ===
+# === Telegram Application ===
 application = Application.builder().token(TOKEN).build()
-loop = asyncio.get_event_loop()
+
+# создаем отдельный event loop в фоне
+loop = asyncio.new_event_loop()
+
+def start_loop(loop):
+    asyncio.set_event_loop(loop)
+    loop.run_forever()
+
+# запускаем event loop в отдельном потоке
+threading.Thread(target=start_loop, args=(loop,), daemon=True).start()
+
 
 # === Обработчики ===
 async def start(update: Update, context):
@@ -21,6 +32,7 @@ async def echo(update: Update, context):
 
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+
 
 # === Webhook endpoint ===
 @app.route("/webhook", methods=["POST"])
@@ -38,13 +50,13 @@ def webhook():
             except Exception as e:
                 print(f"Async error: {e}")
 
-        # запускаем обработку асинхронно, не блокируя ответ Telegram
+        # выполняем асинхронно в фоновом loop’е
         asyncio.run_coroutine_threadsafe(process_update(), loop)
 
     except Exception as e:
         print(f"Webhook error: {e}")
 
-    # Telegram сразу получает ответ, не дожидаясь обработки
+    # Telegram сразу получает ответ
     return jsonify({"ok": True}), 200
 
 
