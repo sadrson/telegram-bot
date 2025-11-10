@@ -43,10 +43,12 @@ application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
 # === Фоновый запуск Telegram-приложения ===
 def run_telegram():
-    asyncio.run(application.initialize())
-    asyncio.run(application.start())
+    loop = asyncio.new_event_loop()      # создаём новый event loop
+    asyncio.set_event_loop(loop)         # устанавливаем его для текущего потока
+    loop.run_until_complete(application.initialize())
+    loop.run_until_complete(application.start())
     logger.info("✅ Telegram application started (background mode)")
-    asyncio.get_event_loop().run_forever()
+    loop.run_forever()
 
 
 threading.Thread(target=run_telegram, daemon=True).start()
