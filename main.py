@@ -9,15 +9,15 @@ import sys
 
 # === Настройки ===
 TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # https://your-app.onrender.com/webhook
 PORT = int(os.environ.get("PORT", 10000))
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # например, https://your-app.onrender.com/webhook
 
 app = Flask(__name__)
 
 # === Telegram Application ===
 application = Application.builder().token(TOKEN).build()
 
-# === Глобальный event loop в отдельном потоке ===
+# Глобальный event loop
 loop = asyncio.new_event_loop()
 
 def start_loop(loop):
@@ -30,11 +30,9 @@ threading.Thread(target=start_loop, args=(loop,), daemon=True).start()
 shutdown_event = threading.Event()
 
 def handle_shutdown(sig, frame):
-    print("Получен SIGTERM, закрываемся...")
+    print("SIGTERM получен, закрываемся...")
     shutdown_event.set()
-    # удаляем webhook, чтобы Telegram не слал апдейты старому воркеру
-    bot = Bot(TOKEN)
-    bot.delete_webhook()
+    Bot(TOKEN).delete_webhook()
     sys.exit(0)
 
 signal.signal(signal.SIGTERM, handle_shutdown)
@@ -56,14 +54,11 @@ def webhook():
     if shutdown_event.is_set():
         return jsonify({"ok": True, "message": "Shutting down"}), 200
 
-    try:
-        data = request.get_json(force=True)
-        update = Update.de_json(data, application.bot)
-        # Отправляем апдейт в глобальный event loop
-        asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
+    data = request.get_json(force=True)
+    update = Update.de_json(data, application.bot)
 
-    except Exception as e:
-        print(f"Webhook error: {e}")
+    # Отправляем обработку апдейта в глобальный loop
+    asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
 
     return jsonify({"ok": True}), 200
 
