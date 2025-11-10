@@ -9,15 +9,16 @@ import sys
 
 # === Настройки ===
 TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # например: https://telegram-bot-vluf.onrender.com/webhook
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # пример: https://telegram-bot-vluf.onrender.com/webhook
 PORT = int(os.environ.get("PORT", 10000))
 
 app = Flask(__name__)
+bot = Bot(TOKEN)
 
 # === Telegram Application ===
 application = Application.builder().token(TOKEN).build()
 
-# === Глобальный event loop ===
+# Глобальный event loop
 loop = asyncio.new_event_loop()
 
 def start_loop(loop):
@@ -32,11 +33,7 @@ shutdown_event = threading.Event()
 def handle_shutdown(sig, frame):
     print("SIGTERM получен, закрываемся...")
     shutdown_event.set()
-    try:
-        Bot(TOKEN).delete_webhook()
-        print("Webhook удалён.")
-    except Exception as e:
-        print(f"Ошибка при удалении webhook: {e}")
+    bot.delete_webhook()
     sys.exit(0)
 
 signal.signal(signal.SIGTERM, handle_shutdown)
@@ -58,14 +55,12 @@ def webhook():
     if shutdown_event.is_set():
         return jsonify({"ok": True, "message": "Shutting down"}), 200
 
-    data = request.get_json(force=True)
-    print(f"Получен апдейт: {data}")  # лог для отладки
-
     try:
+        data = request.get_json(force=True)
         update = Update.de_json(data, application.bot)
         asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
     except Exception as e:
-        print(f"Ошибка обработки апдейта: {e}")
+        print(f"Webhook error: {e}")
 
     return jsonify({"ok": True}), 200
 
@@ -74,16 +69,20 @@ def webhook():
 def home():
     return "Бот запущен 🚀", 200
 
-# === Установка webhook при старте ===
-def set_webhook():
-    bot = Bot(TOKEN)
-    current = bot.get_webhook_info()
-    if current.url != WEBHOOK_URL:
-        bot.set_webhook(url=WEBHOOK_URL, max_connections=1)
-        print(f"Webhook установлен: {WEBHOOK_URL}")
-    else:
-        print("Webhook уже установлен.")
+# === Проверка и установка webhook ===
+def ensure_webhook():
+    try:
+        info = bot.get_webhook_info()
+        if info.url != WEBHOOK_URL:
+            print(f"🔄 Устанавливаем webhook: {WEBHOOK_URL}")
+            bot.set_webhook(url=WEBHOOK_URL, max_connections=1)
+        else:
+            print(f"✅ Webhook уже установлен: {info.url}")
+    except Exception as e:
+        print(f"Ошибка установки webhook: {e}")
 
+# === Точка входа ===
 if __name__ == "__main__":
-    set_webhook()
+    ensure_webhook()
+    print("🚀 Запуск Flask-сервера...")
     app.run(host="0.0.0.0", port=PORT)
