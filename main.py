@@ -43,20 +43,16 @@ def webhook():
         update = Update.de_json(data, application.bot)
 
         async def process_update():
-            try:
-                if not application._initialized:
-                    await application.initialize()
-                await application.process_update(update)
-            except Exception as e:
-                print(f"Async error: {e}")
+            if not application._initialized:
+                await application.initialize()
+            await application.process_update(update)
 
-        # выполняем асинхронно в фоновом loop’е
-        asyncio.run_coroutine_threadsafe(process_update(), loop)
+        # создаём event loop под каждое обращение
+        asyncio.run(process_update())
 
     except Exception as e:
         print(f"Webhook error: {e}")
 
-    # Telegram сразу получает ответ
     return jsonify({"ok": True}), 200
 
 
@@ -69,3 +65,4 @@ def home():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
