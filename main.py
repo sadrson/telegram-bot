@@ -9,7 +9,7 @@ import sys
 
 # === Настройки ===
 TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # https://your-app.onrender.com/webhook
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # например: https://telegram-bot-vluf.onrender.com/webhook
 PORT = int(os.environ.get("PORT", 10000))
 
 app = Flask(__name__)
@@ -17,7 +17,7 @@ app = Flask(__name__)
 # === Telegram Application ===
 application = Application.builder().token(TOKEN).build()
 
-# Глобальный event loop
+# === Глобальный event loop ===
 loop = asyncio.new_event_loop()
 
 def start_loop(loop):
@@ -32,7 +32,11 @@ shutdown_event = threading.Event()
 def handle_shutdown(sig, frame):
     print("SIGTERM получен, закрываемся...")
     shutdown_event.set()
-    Bot(TOKEN).delete_webhook()
+    try:
+        Bot(TOKEN).delete_webhook()
+        print("Webhook удалён.")
+    except Exception as e:
+        print(f"Ошибка при удалении webhook: {e}")
     sys.exit(0)
 
 signal.signal(signal.SIGTERM, handle_shutdown)
@@ -55,14 +59,17 @@ def webhook():
         return jsonify({"ok": True, "message": "Shutting down"}), 200
 
     data = request.get_json(force=True)
-    update = Update.de_json(data, application.bot)
+    print(f"Получен апдейт: {data}")  # лог для отладки
 
-    # Отправляем обработку апдейта в глобальный loop
-    asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
+    try:
+        update = Update.de_json(data, application.bot)
+        asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
+    except Exception as e:
+        print(f"Ошибка обработки апдейта: {e}")
 
     return jsonify({"ok": True}), 200
 
-# === Главная страница для проверки ===
+# === Главная страница ===
 @app.route("/", methods=["GET"])
 def home():
     return "Бот запущен 🚀", 200
@@ -70,8 +77,12 @@ def home():
 # === Установка webhook при старте ===
 def set_webhook():
     bot = Bot(TOKEN)
-    bot.set_webhook(url=WEBHOOK_URL, max_connections=1)
-    print("Webhook установлен!")
+    current = bot.get_webhook_info()
+    if current.url != WEBHOOK_URL:
+        bot.set_webhook(url=WEBHOOK_URL, max_connections=1)
+        print(f"Webhook установлен: {WEBHOOK_URL}")
+    else:
+        print("Webhook уже установлен.")
 
 if __name__ == "__main__":
     set_webhook()
