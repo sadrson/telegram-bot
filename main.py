@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram.ext import Application, CommandHandler
 import os
 import asyncio
 import threading
@@ -9,7 +9,7 @@ import datetime
 
 # === Настройки ===
 TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")  # ID чата, куда бот будет отправлять уведомления
+CHAT_ID = os.getenv("CHAT_ID")  # ID чата для уведомлений
 WEBHOOK_URL = "https://telegram-bot-vluf.onrender.com/webhook"
 
 app = Flask(__name__)
@@ -17,16 +17,19 @@ app = Flask(__name__)
 # === Telegram Application ===
 application = Application.builder().token(TOKEN).build()
 
-# === Асинхронный event loop ===
+# === Асинхронный event loop в фоне ===
 loop = asyncio.new_event_loop()
 def start_loop(loop):
     asyncio.set_event_loop(loop)
     loop.run_forever()
-threading.Thread(target=start_loop, args=(loop,), daemon=True).start()
+
+threading.Thread(target=start_loop, args=(loop,)).start()  # без daemon=True
 
 # === Команды ===
 async def start(update: Update, context):
-    await update.message.reply_text("✅ Бот запущен и будет присылать уведомления по расписанию.")
+    await update.message.reply_text(
+        "✅ Бот запущен и будет присылать уведомления по расписанию."
+    )
 
 application.add_handler(CommandHandler("start", start))
 
@@ -51,9 +54,14 @@ def home():
 # === Планировщик уведомлений ===
 def scheduler():
     async def send_reminder():
-        text = "🥦 Напоминание! Не забудь заполнить [форму](https://docs.google.com/forms/d/e/1FAIpQLSeG38n-P76ju46Zi6D4CHX8t6zfbxN506NupZboNeERhkT81A/viewform)"
+        text = (
+            "🥦 Напоминание! Не забудь заполнить "
+            "[форму](https://docs.google.com/forms/d/e/1FAIpQLSeG38n-P76ju46Zi6D4CHX8t6zfbxN506NupZboNeERhkT81A/viewform)"
+        )
         try:
-            await application.bot.send_message(chat_id=CHAT_ID, text=text, parse_mode="Markdown")
+            await application.bot.send_message(
+                chat_id=CHAT_ID, text=text, parse_mode="Markdown"
+            )
             print(f"✅ Уведомление отправлено {datetime.datetime.now()}")
         except Exception as e:
             print(f"Ошибка отправки уведомления: {e}")
@@ -70,8 +78,8 @@ def scheduler():
 
     asyncio.run_coroutine_threadsafe(job(), loop)
 
-# Запуск планировщика
-threading.Thread(target=scheduler, daemon=True).start()
+# Запуск планировщика без daemon=True
+threading.Thread(target=scheduler).start()
 
 # === Установка вебхука ===
 def set_webhook():
