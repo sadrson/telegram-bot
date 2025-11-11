@@ -5,25 +5,29 @@ import os
 import asyncio
 import threading
 
-# === Настройки ===
 TOKEN = os.getenv("BOT_TOKEN")
 app = Flask(__name__)
 
-# === Telegram Application ===
 application = Application.builder().token(TOKEN).build()
 
-# создаем отдельный event loop в фоне
-loop = asyncio.new_event_loop()
+# глобальные переменные
+loop = None
+loop_thread = None
 
-def start_loop(loop):
-    asyncio.set_event_loop(loop)
-    loop.run_forever()
+def ensure_loop_running():
+    global loop, loop_thread
+    if loop is None or not loop.is_running():
+        loop = asyncio.new_event_loop()
 
-# запускаем event loop в отдельном потоке
-threading.Thread(target=start_loop, args=(loop,), daemon=True).start()
+        def run_loop():
+            asyncio.set_event_loop(loop)
+            loop.run_forever()
 
+        loop_thread = threading.Thread(target=run_loop, daemon=True)
+        loop_thread.start()
 
-# === Обработчики ===
+ensure_loop_running()
+
 async def start(update: Update, context):
     await update.message.reply_text("✅ Бот успешно работает на Render!")
 
@@ -33,12 +37,10 @@ async def echo(update: Update, context):
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
-
-# === Webhook endpoint ===
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    """Приём апдейтов от Telegram"""
     try:
+        ensure_loop_running()
         data = request.get_json(force=True)
         update = Update.de_json(data, application.bot)
 
@@ -47,20 +49,16 @@ def webhook():
                 await application.initialize()
             await application.process_update(update)
 
-        # создаём event loop под каждое обращение
-        asyncio.run(process_update())
+        asyncio.run_coroutine_threadsafe(process_update(), loop)
 
     except Exception as e:
         print(f"Webhook error: {e}")
 
-    return jsonify({"ok": True}), 200
+    return jsonify({"ok": True})
 
-
-# === Главная страница ===
-@app.route("/", methods=["GET"])
+@app.route("/")
 def home():
     return "Бот запущен 🚀", 200
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
