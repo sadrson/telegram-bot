@@ -25,6 +25,9 @@ def start_loop(loop):
 
 threading.Thread(target=start_loop, args=(loop,)).start()  # без daemon=True
 
+# === Инициализация Application сразу ===
+asyncio.run_coroutine_threadsafe(application.initialize(), loop)
+
 # === Команды ===
 async def start(update: Update, context):
     await update.message.reply_text(
@@ -40,8 +43,6 @@ def webhook():
     update = Update.de_json(data, application.bot)
 
     async def process():
-        if not application._initialized:
-            await application.initialize()
         await application.process_update(update)
 
     asyncio.run_coroutine_threadsafe(process(), loop)
@@ -51,35 +52,30 @@ def webhook():
 def home():
     return "Бот запущен 🚀", 200
 
-# === Планировщик уведомлений ===
-def scheduler():
-    async def send_reminder():
-        text = (
-            "🥦 Напоминание! Не забудь заполнить "
-            "[форму](https://docs.google.com/forms/d/e/1FAIpQLSeG38n-P76ju46Zi6D4CHX8t6zfbxN506NupZboNeERhkT81A/viewform)"
-        )
-        try:
-            await application.bot.send_message(
-                chat_id=CHAT_ID, text=text, parse_mode="Markdown"
-            )
-            print(f"✅ Уведомление отправлено {datetime.datetime.now()}")
-        except Exception as e:
-            print(f"Ошибка отправки уведомления: {e}")
+# === Планировщик уведомлений (через loop) ===
+async def scheduler_job():
+    while True:
+        now = datetime.datetime.utcnow() + datetime.timedelta(hours=5)  # UTC+5
+        day = now.strftime("%a")  # Wed, Fri, Sun
+        time_str = now.strftime("%H:%M")
+        if day in ["Wed", "Fri", "Sun"] and time_str == "15:00":
+            try:
+                await application.bot.send_message(
+                    chat_id=CHAT_ID,
+                    text=(
+                        "🥦 Напоминание! Не забудь заполнить "
+                        "[форму](https://docs.google.com/forms/d/e/1FAIpQLSeG38n-P76ju46Zi6D4CHX8t6zfbxN506NupZboNeERhkT81A/viewform)"
+                    ),
+                    parse_mode="Markdown"
+                )
+                print(f"✅ Уведомление отправлено {datetime.datetime.now()}")
+            except Exception as e:
+                print(f"Ошибка отправки уведомления: {e}")
+            await asyncio.sleep(61)  # чтобы не сработало повторно в ту же минуту
+        await asyncio.sleep(30)
 
-    async def job():
-        while True:
-            now = datetime.datetime.utcnow() + datetime.timedelta(hours=5)  # UTC+5
-            day = now.strftime("%a")  # Wed, Fri, Sun
-            time_str = now.strftime("%H:%M")
-            if day in ["Wed", "Fri", "Sun"] and time_str == "15:00":
-                await send_reminder()
-                await asyncio.sleep(61)  # чтобы не сработало повторно в ту же минуту
-            await asyncio.sleep(30)
-
-    asyncio.run_coroutine_threadsafe(job(), loop)
-
-# Запуск планировщика без daemon=True
-threading.Thread(target=scheduler).start()
+# Запуск планировщика в loop
+asyncio.run_coroutine_threadsafe(scheduler_job(), loop)
 
 # === Установка вебхука ===
 def set_webhook():
