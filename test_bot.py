@@ -1,59 +1,40 @@
-from flask import Flask, request, jsonify
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
-import os
-import asyncio
-import threading
+from flask import Flask, request
+from telegram import Update, Bot
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 
-# === Настройки ===
-TOKEN = os.getenv("BOT_TOKEN")            # токен бота
-CHAT_ID = os.getenv("CHAT_ID")            # ID чата (для уведомлений, если нужно)
-WEBHOOK_PATH = "/webhook"                 # путь webhook
-WEBHOOK_URL = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}{WEBHOOK_PATH}"
+import os
+
+TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
 app = Flask(__name__)
+bot = Bot(token=TOKEN)
 
-# === Создаем Telegram Application ===
-application = Application.builder().token(TOKEN).build()
+# === Telegram Application ===
+application = ApplicationBuilder().token(TOKEN).build()
 
-# === Асинхронный loop в фоне ===
-loop = asyncio.new_event_loop()
-def start_loop(loop):
-    asyncio.set_event_loop(loop)
-    loop.run_forever()
-threading.Thread(target=start_loop, args=(loop,), daemon=True).start()
+# === Хэндлеры ===
+async def start(update, context):
+    await update.message.reply_text(f"✅ Бот работает! Твой chat_id: {update.effective_chat.id}")
 
-# === Команды ===
-async def start(update: Update, context):
-    chat_id = update.effective_chat.id
-    print(f"Chat ID: {chat_id}")  # выводим для логов Render
-    await update.message.reply_text(f"✅ Бот работает! Твой chat_id: {chat_id}")
-
-async def echo(update: Update, context):
+async def echo(update, context):
     await update.message.reply_text(update.message.text)
 
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
-# === Webhook endpoint ===
-@app.route(WEBHOOK_PATH, methods=["POST"])
+# === Webhook ===
+@app.route("/webhook", methods=["POST"])
 def webhook():
     data = request.get_json(force=True)
-    update = Update.de_json(data, application.bot)
-    # Отправляем на обработку в Telegram Application через event loop
-    asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
-    return jsonify({"ok": True})
+    update = Update.de_json(data, bot)
+    application.create_task(application.process_update(update))
+    return "OK", 200
 
 @app.route("/", methods=["GET"])
 def home():
-    return "Бот запущен 🚀"
+    return "Бот запущен 🚀", 200
 
-# === Запуск Flask ===
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
-    # Устанавливаем webhook при старте (один раз)
-    import requests
-    r = requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}")
-    print(r.json())
-    
     app.run(host="0.0.0.0", port=port)
