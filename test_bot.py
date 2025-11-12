@@ -38,10 +38,17 @@ application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
 # === Webhook endpoint ===
 @app.route("/webhook", methods=["POST"])
-async def webhook():
+def webhook():
     data = request.get_json(force=True)
     update = Update.de_json(data, application.bot)
-    await application.process_update(update)
+    
+    async def process():
+        if not application._initialized:
+            await application.initialize()
+        await application.process_update(update)
+    
+    # Запускаем в фоновом event loop
+    asyncio.run_coroutine_threadsafe(process(), loop)
     return jsonify({"ok": True}), 200
 
 @app.route("/", methods=["GET"])
