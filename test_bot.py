@@ -13,7 +13,7 @@ app = Flask(__name__)
 # Расписание уведомлений
 DAYS = ["Wed", "Fri", "Sun"]
 HOUR = 15
-MINUTE = 48
+MINUTE = 53
 TIMEZONE = "Asia/Almaty"  # UTC+5
 
 @app.route("/", methods=["GET", "HEAD"])
@@ -22,7 +22,6 @@ def index():
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    # проверяем время и день
     tz = pytz.timezone(TIMEZONE)
     now = datetime.now(tz)
     weekday = now.strftime("%a")  # 'Wed', 'Fri', 'Sun' и т.д.
@@ -38,3 +37,4 @@ def webhook():
     return "Webhook received", 200
 
 if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
