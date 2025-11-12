@@ -1,55 +1,61 @@
 import os
-import asyncio
-from flask import Flask, request
-from telegram import Update
+from flask import Flask, request, jsonify
+from telegram import Bot, Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-# ================= Настройки =================
-TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")  # можно использовать для теста
-if not TOKEN:
-    raise ValueError("Не установлен BOT_TOKEN")
-if not CHAT_ID:
-    raise ValueError("Не установлен CHAT_ID")
+# -------------------
+# Переменные окружения
+# -------------------
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+CHAT_ID = os.environ.get("CHAT_ID")
 
-# ================= Telegram =================
-application = Application.builder().token(TOKEN).build()
+if not BOT_TOKEN or not CHAT_ID:
+    raise ValueError("Не задан BOT_TOKEN или CHAT_ID")
 
-# ======== Обработчики команд ========
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Привет! 🥦 Я бот для тестирования уведомлений. "
-        "Я могу присылать напоминания и уведомления."
-    )
-
-application.add_handler(CommandHandler("start", start))
-
-# ================= Flask =================
+# -------------------
+# Flask
+# -------------------
 app = Flask(__name__)
 
-# ======== Отправка тестового уведомления ========
-async def send_test_message(chat_id: str):
-    await application.bot.send_message(chat_id=chat_id, text="🥦 Тестовое уведомление! Бот работает ✅")
+# -------------------
+# Telegram Bot (синхронный)
+# -------------------
+bot = Bot(BOT_TOKEN)
 
-# ======== Роут для теста через браузер ========
-@app.route("/", methods=["GET"])
-async def index():
-    await send_test_message(CHAT_ID)
-    return "Тестовое уведомление отправлено ✅", 200
+def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    update.message.reply_text("Бот активен ✅")
 
-# ======== Роут для webhook ========
+application = Application.builder().token(BOT_TOKEN).build()
+application.add_handler(CommandHandler("start", start))
+
+# -------------------
+# Webhook
+# -------------------
 @app.route("/webhook", methods=["POST"])
-async def webhook():
-    data = await request.get_json()
-    if not data:
-        return {"ok": False, "error": "Empty request"}, 400
+def webhook():
+    try:
+        data = request.get_json(force=True)
+        update = Update.de_json(data, bot)
+        application.update_queue.put_nowait(update)
+        return jsonify({"ok": True})
+    except Exception as e:
+        print("Ошибка webhook:", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
 
-    update = Update.de_json(data, application.bot)
-    await application.update_queue.put(update)
-    return {"ok": True}, 200
+# -------------------
+# Тестовое уведомление
+# -------------------
+@app.route("/", methods=["GET"])
+def index():
+    try:
+        bot.send_message(chat_id=CHAT_ID, text="🥦 Тестовое уведомление! Бот работает ✅")
+        print("✅ Уведомление отправлено")
+    except Exception as e:
+        print("❌ Ошибка отправки уведомления:", e)
+    return "Бот онлайн", 200
 
-# ================= Локальный запуск =================
+# -------------------
+# Запуск
+# -------------------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    print(f"Запуск на порту {port}...")
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
