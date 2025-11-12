@@ -68,6 +68,19 @@ def setup_scheduler():
     )
     
     scheduler.start()
+    
+    # Добавляем логирование
+    logger.info("=" * 50)
+    logger.info("🕐 Планировщик запущен!")
+    logger.info(f"⏰ Расписание: {SCHEDULE_CONFIG['days']} в {SCHEDULE_CONFIG['hour']}:{SCHEDULE_CONFIG['minute']:02d}")
+    logger.info(f"🌍 Часовой пояс: {TIMEZONE}")
+    
+    # Логируем все запланированные задачи
+    jobs = scheduler.get_jobs()
+    for job in jobs:
+        logger.info(f"Задание: {job.name} - Следующий запуск: {job.next_run_time}")
+    logger.info("=" * 50)
+    
     return scheduler
 
 @app.route("/")
@@ -90,3 +103,4 @@ if __name__ == "__main__":
     scheduler = setup_scheduler()
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
