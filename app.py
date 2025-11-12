@@ -12,11 +12,11 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 TIMEZONE = "Asia/Bishkek"  # UTC+6
 
-# Расписание: Среда, Пятница, Воскресенье в 16:57
+# Расписание: Среда, Пятница, Воскресенье в 17:02
 SCHEDULE_CONFIG = {
     'days': ['wed', 'fri', 'sun'],
-    'hour': 16,
-    'minute': 57
+    'hour': 17,
+    'minute': 2
 }
 
 MESSAGE_TEXTS = {
