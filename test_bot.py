@@ -2,7 +2,8 @@ from flask import Flask
 import asyncio
 import datetime
 import pytz
-from telegram import Bot, ParseMode
+from telegram import Bot
+from telegram.constants import ParseMode
 import threading
 
 BOT_TOKEN = "ВАШ_BOT_TOKEN"
@@ -32,12 +33,13 @@ async def scheduler():
         wait_seconds = (send_time - now).total_seconds()
 
         if today_str in SCHEDULE_DAYS and wait_seconds > 0:
+            print(f"⏳ Ждем {int(wait_seconds)} секунд до уведомления ({today_str} 15:00)...")
             await asyncio.sleep(wait_seconds)
             await send_reminder()
         else:
             await asyncio.sleep(60)
 
-# Запуск asyncio scheduler в отдельном потоке, чтобы Flask не блокировался
+# Фоновый поток для асинхронного планировщика
 def start_scheduler():
     asyncio.run(scheduler())
 
@@ -49,7 +51,6 @@ def index():
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    # Заглушка для webhook, можно обработать входящие сообщения
     return "OK", 200
 
 if __name__ == "__main__":
