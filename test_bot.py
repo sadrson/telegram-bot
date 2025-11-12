@@ -1,61 +1,58 @@
-import os
-from flask import Flask, request, jsonify
-from telegram import Bot, Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+import asyncio
+from datetime import datetime, timedelta
+from telegram import Bot
 
-# -------------------
-# Переменные окружения
-# -------------------
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-CHAT_ID = os.environ.get("CHAT_ID")
+# =======================
+# Настройки бота
+# =======================
+BOT_TOKEN = "ВАШ_BOT_TOKEN"
+CHAT_ID = "ВАШ_CHAT_ID"
+bot = Bot(token=BOT_TOKEN)
 
-if not BOT_TOKEN or not CHAT_ID:
-    raise ValueError("Не задан BOT_TOKEN или CHAT_ID")
+# Сообщение с формой
+text = (
+    "🥦 Напоминание! Не забудь заполнить "
+    "[форму](https://docs.google.com/forms/d/e/1FAIpQLSeG38n-P76ju46Zi6D4CHX8t6zfbxN506NupZboNeERhkT81A/viewform)"
+)
 
-# -------------------
-# Flask
-# -------------------
-app = Flask(__name__)
+# Дни недели для уведомлений
+DAYS = ["Wed", "Fri", "Sun"]
+TIME_STR = "15:00"  # время UTC+5
 
-# -------------------
-# Telegram Bot (синхронный)
-# -------------------
-bot = Bot(BOT_TOKEN)
 
-def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    update.message.reply_text("Бот активен ✅")
-
-application = Application.builder().token(BOT_TOKEN).build()
-application.add_handler(CommandHandler("start", start))
-
-# -------------------
-# Webhook
-# -------------------
-@app.route("/webhook", methods=["POST"])
-def webhook():
+# =======================
+# Функция отправки уведомления
+# =======================
+async def send_reminder():
     try:
-        data = request.get_json(force=True)
-        update = Update.de_json(data, bot)
-        application.update_queue.put_nowait(update)
-        return jsonify({"ok": True})
+        await bot.send_message(chat_id=CHAT_ID, text=text, parse_mode="Markdown")
+        print(f"✅ Уведомление отправлено {datetime.now()}")
     except Exception as e:
-        print("Ошибка webhook:", e)
-        return jsonify({"ok": False, "error": str(e)}), 500
+        print(f"❌ Ошибка отправки уведомления: {e}")
 
-# -------------------
-# Тестовое уведомление
-# -------------------
-@app.route("/", methods=["GET"])
-def index():
-    try:
-        bot.send_message(chat_id=CHAT_ID, text="🥦 Тестовое уведомление! Бот работает ✅")
-        print("✅ Уведомление отправлено")
-    except Exception as e:
-        print("❌ Ошибка отправки уведомления:", e)
-    return "Бот онлайн", 200
 
-# -------------------
+# =======================
+# Основной цикл
+# =======================
+async def scheduler():
+    while True:
+        # Текущее время UTC+5
+        now_utc = datetime.utcnow()
+        now = now_utc + timedelta(hours=5)
+
+        current_day = now.strftime("%a")  # 'Mon', 'Tue', 'Wed', ...
+        current_time = now.strftime("%H:%M")
+
+        # Проверяем день и время
+        if current_day in DAYS and current_time == TIME_STR:
+            await send_reminder()
+            await asyncio.sleep(60)  # ждём минуту, чтобы не отправлять повторно
+
+        await asyncio.sleep(10)  # проверяем каждые 10 секунд
+
+
+# =======================
 # Запуск
-# -------------------
+# =======================
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+    asyncio.run(scheduler())
