@@ -4,18 +4,17 @@ from telegram.ext import Application
 import datetime
 
 # ================= Настройки =================
-TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("BOT_TOKEN")  # токен бота
 CHAT_ID = os.getenv("CHAT_ID")  # куда отправлять уведомления
+
+if not TOKEN or not CHAT_ID:
+    raise ValueError("Не установлены переменные окружения BOT_TOKEN или CHAT_ID")
 
 # ================= Telegram =================
 application = Application.builder().token(TOKEN).build()
 
 # ================= Функция уведомления =================
 async def send_test_reminder():
-    if not CHAT_ID:
-        print("❌ CHAT_ID не установлен!")
-        return
-
     text = (
         "🥦 Тестовое уведомление! Бот работает и может отправлять напоминания."
     )
@@ -23,11 +22,8 @@ async def send_test_reminder():
         await application.bot.send_message(chat_id=CHAT_ID, text=text)
         print(f"✅ Уведомление отправлено {datetime.datetime.now()}")
     except Exception as e:
-        print(f"Ошибка отправки уведомления: {e}")
+        print(f"❌ Ошибка отправки уведомления: {e}")
 
 # ================= Запуск =================
-async def main():
-    await send_test_reminder()
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(send_test_reminder())
