@@ -80,21 +80,22 @@ def send_test_message():
     logger.info("🧪 Отправка тестового сообщения")
     return send_telegram_message(MESSAGE_TEXTS['test'])
 
-def setup_scheduler():
-    """Настраивает и запускает планировщик задач"""
-    logger.info("🔄 Запуск планировщика...")
+# ===== ПЛАНИРОВЩИК =====
+scheduler = None
+
+def init_scheduler():
+    """Инициализирует планировщик (только в главном процессе)"""
+    global scheduler
+    
+    # Проверяем что мы в главном процессе Gunicorn
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        return
+    if os.environ.get('GUNICORN_WORKER_ID') is not None:
+        return
+        
+    logger.info("🔄 Инициализация планировщика в главном процессе...")
     
     scheduler = BackgroundScheduler(timezone=pytz.timezone(TIMEZONE))
-    
-    # ТЕСТОВОЕ задание - сработает через 2 минуты после запуска
-    test_time = datetime.now(pytz.timezone(TIMEZONE)) + timedelta(minutes=2)
-    scheduler.add_job(
-        send_reminder,
-        'date',
-        run_date=test_time,
-        id='test_job_2min',
-        name='Тестовое уведомление через 2 минуты'
-    )
     
     # ОСНОВНОЕ задание по расписанию
     scheduler.add_job(
@@ -107,9 +108,19 @@ def setup_scheduler():
         name='Основное уведомление'
     )
     
+    # ТЕСТОВОЕ задание - сработает через 1 минуту после запуска
+    test_time = datetime.now(pytz.timezone(TIMEZONE)) + timedelta(minutes=1)
+    scheduler.add_job(
+        send_reminder,
+        'date',
+        run_date=test_time,
+        id='test_job_1min',
+        name='Тестовое уведомление через 1 минуту'
+    )
+    
     scheduler.start()
     
-    # Детальное логирование всех задач
+    # Детальное логирование
     logger.info("=" * 60)
     logger.info("🤖 ПЛАНИРОВЩИК УСПЕШНО ЗАПУЩЕН!")
     logger.info(f"🌍 Часовой пояс: {TIMEZONE}")
@@ -120,14 +131,14 @@ def setup_scheduler():
     
     for job in jobs:
         logger.info(f"🎯 Задача: {job.name}")
-        logger.info(f"   ID: {job.id}")
         logger.info(f"   Следующий запуск: {job.next_run_time}")
-        logger.info(f"   Триггер: {job.trigger}")
     
     logger.info("=" * 60)
-    
-    return scheduler
 
+# Инициализируем планировщик при импорте
+init_scheduler()
+
+# ===== WEB ROUTES =====
 @app.route("/")
 def index():
     """Главная страница - статус бота"""
@@ -169,13 +180,7 @@ def ping():
     return "pong", 200
 
 if __name__ == "__main__":
-    try:
-        logger.info("🚀 Запуск приложения...")
-        scheduler = setup_scheduler()
-        port = int(os.environ.get("PORT", 10000))
-        logger.info(f"🌐 Flask запускается на порту {port}")
-        app.run(host="0.0.0.0", port=port, debug=False)
-    except Exception as e:
-        logger.error(f"💥 Фатальная ошибка при запуске: {e}")
-        if 'scheduler' in locals():
-            scheduler.shutdown()
+    # Для локального запуска
+    init_scheduler()
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port, debug=False)
