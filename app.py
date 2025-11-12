@@ -12,7 +12,7 @@ from datetime import datetime
 # ===== КОНФИГУРАЦИЯ =====
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
-TIMEZONE = "Asia/Almaty"  # UTC+5
+TIMEZONE = "Asia/Almaty"  # UTC+6
 
 # Расписание: Среда, Пятница, Воскресенье в 16:25
 SCHEDULE_CONFIG = {
@@ -243,3 +243,4 @@ if __name__ == "__main__":
         logger.error(f"Фатальная ошибка при запуске: {e}")
         if 'scheduler' in locals():
             scheduler.shutdown()
+
