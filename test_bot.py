@@ -22,7 +22,7 @@ TEXT = (
 TZ = pytz.timezone("Asia/Almaty")
 SCHEDULE_DAYS = ["Wed", "Fri", "Sun"]
 SCHEDULE_HOUR = 15
-SCHEDULE_MINUTE = 0
+SCHEDULE_MINUTE = 25
 
 async def send_message():
     await bot.send_message(chat_id=CHAT_ID, text=TEXT, parse_mode="Markdown")
@@ -42,3 +42,4 @@ def index():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
+
