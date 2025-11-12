@@ -209,8 +209,11 @@ def get_next_reminder_time():
     """Возвращает время следующего напоминания"""
     from apscheduler.triggers.cron import CronTrigger
     
+    # Исправляем формат дней - объединяем в строку через запятую
+    days_str = ','.join(SCHEDULE_CONFIG['days'])  # 'wed,fri,sun'
+    
     trigger = CronTrigger(
-        day_of_week=SCHEDULE_CONFIG['days'],
+        day_of_week=days_str,  # ← Исправлено!
         hour=SCHEDULE_CONFIG['hour'],
         minute=SCHEDULE_CONFIG['minute'],
         timezone=TIMEZONE
@@ -239,4 +242,5 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Фатальная ошибка при запуске: {e}")
         if 'scheduler' in locals():
+
             scheduler.shutdown()
