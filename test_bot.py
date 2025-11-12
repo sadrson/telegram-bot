@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from telegram import Update
-from telegram.ext import Application, CommandHandler
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import os
 import asyncio
 import threading
@@ -9,7 +9,6 @@ import datetime
 # === Настройки ===
 TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-
 app = Flask(__name__)
 
 # === Telegram Application ===
@@ -25,22 +24,24 @@ threading.Thread(target=start_loop, args=(loop,), daemon=True).start()
 
 # === Команды ===
 async def start(update: Update, context):
-    chat_id = update.message.chat_id
+    chat_id = update.effective_chat.id
     print(f"Chat ID: {chat_id}")
     await update.message.reply_text(f"✅ Бот успешно работает! Твой chat_id: {chat_id}")
 
 application.add_handler(CommandHandler("start", start))
 
+# Эхо
+async def echo(update: Update, context):
+    await update.message.reply_text(update.message.text)
+
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+
 # === Webhook endpoint ===
 @app.route("/webhook", methods=["POST"])
-def webhook():
+async def webhook():
     data = request.get_json(force=True)
     update = Update.de_json(data, application.bot)
-
-    async def process_update():
-        await application.process_update(update)
-
-    asyncio.run_coroutine_threadsafe(process_update(), loop)
+    await application.process_update(update)
     return jsonify({"ok": True}), 200
 
 @app.route("/", methods=["GET"])
@@ -75,14 +76,9 @@ def scheduler():
 
     asyncio.run_coroutine_threadsafe(job(), loop)
 
-# === Инициализация и запуск ===
-async def init_bot():
-    await application.initialize()
-    print("✅ Telegram application initialized")
-
-asyncio.run_coroutine_threadsafe(init_bot(), loop)
 threading.Thread(target=scheduler, daemon=True).start()
 
+# === Запуск Flask ===
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
