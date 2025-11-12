@@ -4,21 +4,19 @@ from flask import Flask
 from telegram import Bot
 from telegram.error import TelegramError
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.jobstores.memory import MemoryJobStore
-from apscheduler.executors.pool import ThreadPoolExecutor
 import pytz
 from datetime import datetime
 
 # ===== КОНФИГУРАЦИЯ =====
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
-TIMEZONE = "Asia/Bishkek"  # UTC+6 - ИСПРАВЛЕНО!
+TIMEZONE = "Asia/Bishkek"  # UTC+6
 
-# Расписание: Среда, Пятница, Воскресенье в 16:35
+# Расписание: Среда, Пятница, Воскресенье в 16:45
 SCHEDULE_CONFIG = {
     'days': ['wed', 'fri', 'sun'],
     'hour': 16,
-    'minute': 35
+    'minute': 45  # ← ИЗМЕНИЛ НА 45 ДЛЯ ТЕСТА
 }
 
 MESSAGE_TEXTS = {
@@ -32,30 +30,54 @@ MESSAGE_TEXTS = {
 }
 
 # ===== НАСТРОЙКА ЛОГИРОВАНИЯ =====
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 # ===== ИНИЦИАЛИЗАЦИЯ =====
-bot = Bot(BOT_TOKEN)
-app = Flask(__name__)
+try:
+    bot = Bot(BOT_TOKEN)
+    app = Flask(__name__)
+except Exception as e:
+    logger.error(f"Ошибка инициализации: {e}")
+    raise
 
 def send_telegram_message(text):
     try:
-        bot.send_message(chat_id=CHAT_ID, text=text, parse_mode='Markdown')
+        bot.send_message(
+            chat_id=CHAT_ID, 
+            text=text, 
+            parse_mode='Markdown',
+            disable_web_page_preview=False
+        )
+        logger.info("Сообщение успешно отправлено")
         return True
+    except TelegramError as e:
+        logger.error(f"Ошибка Telegram: {e}")
+        return False
     except Exception as e:
-        logger.error(f"Ошибка: {e}")
+        logger.error(f"Неожиданная ошибка: {e}")
         return False
 
 def send_reminder():
+    """Отправляет основное напоминание"""
     current_time = datetime.now(pytz.timezone(TIMEZONE)).strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"Отправка напоминания в {current_time}")
-    send_telegram_message(MESSAGE_TEXTS['reminder'])
+    logger.info(f"🕐 Попытка отправки напоминания в {current_time}")
+    
+    success = send_telegram_message(MESSAGE_TEXTS['reminder'])
+    
+    if success:
+        logger.info("✅ Напоминание отправлено успешно")
+    else:
+        logger.error("❌ Не удалось отправить напоминание")
 
 def send_test_message():
     return send_telegram_message(MESSAGE_TEXTS['test'])
 
 def setup_scheduler():
+    """Настраивает и запускает планировщик задач"""
     scheduler = BackgroundScheduler(timezone=pytz.timezone(TIMEZONE))
     
     scheduler.add_job(
@@ -64,21 +86,23 @@ def setup_scheduler():
         day_of_week=','.join(SCHEDULE_CONFIG['days']),
         hour=SCHEDULE_CONFIG['hour'],
         minute=SCHEDULE_CONFIG['minute'],
-        id='weekly_reminder'
+        id='weekly_reminder',
+        name='Еженедельное напоминание'
     )
     
     scheduler.start()
     
-    # Добавляем логирование
+    # Логируем запуск
     logger.info("=" * 50)
-    logger.info("🕐 Планировщик запущен!")
+    logger.info("🤖 Планировщик запущен!")
     logger.info(f"⏰ Расписание: {SCHEDULE_CONFIG['days']} в {SCHEDULE_CONFIG['hour']}:{SCHEDULE_CONFIG['minute']:02d}")
     logger.info(f"🌍 Часовой пояс: {TIMEZONE}")
     
-    # Логируем все запланированные задачи
+    # Логируем следующее выполнение
     jobs = scheduler.get_jobs()
     for job in jobs:
-        logger.info(f"Задание: {job.name} - Следующий запуск: {job.next_run_time}")
+        logger.info(f"📅 Задание: {job.name}")
+        logger.info(f"🔄 Следующий запуск: {job.next_run_time}")
     logger.info("=" * 50)
     
     return scheduler
@@ -89,7 +113,12 @@ def index():
         "message": "🤖 Бот уведомлений активен",
         "data": {
             "status": "active",
-            "timezone": TIMEZONE,
+            "service": "Telegram Reminder Bot",
+            "schedule": {
+                "days": SCHEDULE_CONFIG['days'],
+                "time": f"{SCHEDULE_CONFIG['hour']}:{SCHEDULE_CONFIG['minute']:02d}",
+                "timezone": TIMEZONE
+            },
             "timestamp": datetime.now(pytz.timezone(TIMEZONE)).isoformat()
         }
     }, 200
@@ -97,9 +126,27 @@ def index():
 @app.route("/test", methods=["POST"])
 def test_notification():
     success = send_test_message()
-    return {"message": "Тест отправлен"}, 200 if success else 500
+    if success:
+        return {"message": "Тестовое сообщение отправлено"}, 200
+    else:
+        return {"error": "Не удалось отправить тестовое сообщение"}, 500
+
+# Добавим эндпоинт для принудительной отправки
+@app.route("/reminder", methods=["POST"])
+def trigger_reminder():
+    """Ручка для принудительной отправки напоминания"""
+    success = send_telegram_message(MESSAGE_TEXTS['reminder'])
+    if success:
+        return {"message": "Напоминание отправлено"}, 200
+    else:
+        return {"error": "Не удалось отправить напоминание"}, 500
 
 if __name__ == "__main__":
-    scheduler = setup_scheduler()
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    try:
+        scheduler = setup_scheduler()
+        port = int(os.environ.get("PORT", 10000))
+        app.run(host="0.0.0.0", port=port, debug=False)
+    except Exception as e:
+        logger.error(f"Фатальная ошибка при запуске: {e}")
+        if 'scheduler' in locals():
+            scheduler.shutdown()
