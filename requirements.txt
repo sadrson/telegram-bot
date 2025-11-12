@@ -1,6 +1,5 @@
-python-telegram-bot==21.6
-apscheduler
-flask
-gunicorn
-pytz
-requests
+Flask==3.0.3
+python-telegram-bot==20.7
+gunicorn==23.0.0
+uvicorn==0.30.6
+requests==2.32.3
