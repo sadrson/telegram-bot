@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from telegram import Update
+from telegram import Update, Bot
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import os
 import asyncio
@@ -8,18 +8,29 @@ import datetime
 
 # === Настройки ===
 TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+CHAT_ID = os.getenv("CHAT_ID")  # для уведомлений
+WEBHOOK_URL = f"https://telegram-bot-vluf.onrender.com/webhook"
+
 app = Flask(__name__)
 
 # === Telegram Application ===
 application = Application.builder().token(TOKEN).build()
+
+# === Автоматическая установка вебхука ===
+bot = Bot(token=TOKEN)
+bot.delete_webhook()
+print("Старый вебхук удалён")
+success = bot.set_webhook(url=WEBHOOK_URL)
+if success:
+    print(f"✅ Вебхук успешно установлен: {WEBHOOK_URL}")
+else:
+    print("❌ Ошибка установки вебхука")
 
 # === Асинхронный event loop в фоне ===
 loop = asyncio.new_event_loop()
 def start_loop(loop):
     asyncio.set_event_loop(loop)
     loop.run_forever()
-
 threading.Thread(target=start_loop, args=(loop,), daemon=True).start()
 
 # === Команды ===
@@ -30,7 +41,7 @@ async def start(update: Update, context):
 
 application.add_handler(CommandHandler("start", start))
 
-# Эхо
+# Эхо для всех текстовых сообщений
 async def echo(update: Update, context):
     await update.message.reply_text(update.message.text)
 
@@ -41,14 +52,7 @@ application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 def webhook():
     data = request.get_json(force=True)
     update = Update.de_json(data, application.bot)
-    
-    async def process():
-        if not application._initialized:
-            await application.initialize()
-        await application.process_update(update)
-    
-    # Запускаем в фоновом event loop
-    asyncio.run_coroutine_threadsafe(process(), loop)
+    asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
     return jsonify({"ok": True}), 200
 
 @app.route("/", methods=["GET"])
