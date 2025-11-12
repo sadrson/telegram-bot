@@ -14,11 +14,11 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 TIMEZONE = "Asia/Almaty"  # UTC+5
 
-# Расписание: Среда, Пятница, Воскресенье в 16:15
+# Расписание: Среда, Пятница, Воскресенье в 16:25
 SCHEDULE_CONFIG = {
     'days': ['wed', 'fri', 'sun'],
     'hour': 16,
-    'minute': 15
+    'minute': 25
 }
 
 MESSAGE_TEXTS = {
@@ -125,7 +125,7 @@ def setup_scheduler():
     scheduler.add_job(
         send_reminder,
         'cron',
-        day_of_week=SCHEDULE_CONFIG['days'],
+        day_of_week=','.join(SCHEDULE_CONFIG['days']),  # ← ИСПРАВЛЕНО!
         hour=SCHEDULE_CONFIG['hour'],
         minute=SCHEDULE_CONFIG['minute'],
         id='weekly_reminder',
@@ -209,11 +209,11 @@ def get_next_reminder_time():
     """Возвращает время следующего напоминания"""
     from apscheduler.triggers.cron import CronTrigger
     
-    # Исправляем формат дней - объединяем в строку через запятую
-    days_str = ','.join(SCHEDULE_CONFIG['days'])  # 'wed,fri,sun'
+    # Объединяем дни в строку через запятую
+    days_str = ','.join(SCHEDULE_CONFIG['days'])  # ← ИСПРАВЛЕНО!
     
     trigger = CronTrigger(
-        day_of_week=days_str,  # ← Исправлено!
+        day_of_week=days_str,  # 'wed,fri,sun'
         hour=SCHEDULE_CONFIG['hour'],
         minute=SCHEDULE_CONFIG['minute'],
         timezone=TIMEZONE
@@ -242,5 +242,4 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Фатальная ошибка при запуске: {e}")
         if 'scheduler' in locals():
-
             scheduler.shutdown()
