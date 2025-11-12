@@ -1,57 +1,54 @@
-from flask import Flask
-import asyncio
+import os
+import threading
 import datetime
 import pytz
+import time
+from flask import Flask, request
 from telegram import Bot
-from telegram.constants import ParseMode
-import threading
+from telegram.constants import ParseMode  # ✅ исправлено место импорта
 
-BOT_TOKEN = "ВАШ_BOT_TOKEN"
-CHAT_ID = "ВАШ_CHAT_ID"
-
-bot = Bot(token=BOT_TOKEN)
 app = Flask(__name__)
 
-SCHEDULE_DAYS = ["Wed", "Fri", "Sun"]
-HOUR, MINUTE = 15, 0  # Время уведомления (15:00 UTC+5)
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
-async def send_reminder():
+bot = Bot(token=BOT_TOKEN)
+
+def send_reminder():
     text = (
         "🥦 Напоминание! Не забудь заполнить "
         "[форму](https://docs.google.com/forms/d/e/1FAIpQLSeG38n-P76ju46Zi6D4CHX8t6zfbxN506NupZboNeERhkT81A/viewform)"
     )
-    await bot.send_message(chat_id=CHAT_ID, text=text, parse_mode=ParseMode.MARKDOWN)
-    print(f"✅ Уведомление отправлено: {datetime.datetime.now()}")
+    try:
+        bot.send_message(chat_id=CHAT_ID, text=text, parse_mode=ParseMode.MARKDOWN)
+        print(f"✅ Сообщение отправлено {datetime.datetime.now()}")
+    except Exception as e:
+        print(f"Ошибка отправки: {e}")
 
-async def scheduler():
-    tz = pytz.timezone("Asia/Almaty")  # UTC+5
+def scheduler():
+    tz = pytz.timezone("Asia/Yekaterinburg")  # UTC+5
+    days = ["Wed", "Fri", "Sun"]
+
     while True:
         now = datetime.datetime.now(tz)
-        today_str = now.strftime("%a")
+        weekday = now.strftime("%a")
+        time_str = now.strftime("%H:%M")
 
-        send_time = tz.localize(datetime.datetime(now.year, now.month, now.day, HOUR, MINUTE))
-        wait_seconds = (send_time - now).total_seconds()
+        if weekday in days and time_str == "15:00":
+            send_reminder()
+            time.sleep(60)  # чтобы не отправлял повторно в ту же минуту
 
-        if today_str in SCHEDULE_DAYS and wait_seconds > 0:
-            print(f"⏳ Ждем {int(wait_seconds)} секунд до уведомления ({today_str} 15:00)...")
-            await asyncio.sleep(wait_seconds)
-            await send_reminder()
-        else:
-            await asyncio.sleep(60)
-
-# Фоновый поток для асинхронного планировщика
-def start_scheduler():
-    asyncio.run(scheduler())
-
-threading.Thread(target=start_scheduler, daemon=True).start()
+        time.sleep(20)  # проверка каждые 20 секунд
 
 @app.route("/")
-def index():
-    return "Bot is running ✅"
+def home():
+    return "Бот работает!"
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    return "OK", 200
+    return {"ok": True}
 
 if __name__ == "__main__":
+    thread = threading.Thread(target=scheduler, daemon=True)
+    thread.start()
     app.run(host="0.0.0.0", port=10000)
