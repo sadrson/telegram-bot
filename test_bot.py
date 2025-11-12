@@ -1,58 +1,67 @@
 import asyncio
-from datetime import datetime, timedelta
-from telegram import Bot
+from datetime import datetime
+from flask import Flask, request, jsonify
+import pytz
+import requests
+import threading
+import time
 
-# =======================
-# Настройки бота
-# =======================
+# ===== Настройки =====
 BOT_TOKEN = "ВАШ_BOT_TOKEN"
 CHAT_ID = "ВАШ_CHAT_ID"
-bot = Bot(token=BOT_TOKEN)
+TIMEZONE = "Asia/Almaty"  # UTC+5
+SCHEDULE_DAYS = ["Wed", "Fri", "Sun"]
+SCHEDULE_TIME = "15:00"  # время в HH:MM
 
-# Сообщение с формой
-text = (
+# Сообщение
+TEXT = (
     "🥦 Напоминание! Не забудь заполнить "
     "[форму](https://docs.google.com/forms/d/e/1FAIpQLSeG38n-P76ju46Zi6D4CHX8t6zfbxN506NupZboNeERhkT81A/viewform)"
 )
 
-# Дни недели для уведомлений
-DAYS = ["Wed", "Fri", "Sun"]
-TIME_STR = "15:00"  # время UTC+5
+# ===== Flask =====
+app = Flask(__name__)
 
+@app.route("/", methods=["GET", "HEAD"])
+def index():
+    return "OK", 200
 
-# =======================
-# Функция отправки уведомления
-# =======================
-async def send_reminder():
-    try:
-        await bot.send_message(chat_id=CHAT_ID, text=text, parse_mode="Markdown")
-        print(f"✅ Уведомление отправлено {datetime.now()}")
-    except Exception as e:
-        print(f"❌ Ошибка отправки уведомления: {e}")
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    data = request.get_json()
+    print("Webhook received:", data)
+    return jsonify({"ok": True})
 
+# ===== Функция отправки уведомления =====
+def send_telegram_message(text: str):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    data = {
+        "chat_id": CHAT_ID,
+        "text": text,
+        "parse_mode": "Markdown"
+    }
+    resp = requests.post(url, data=data)
+    if resp.status_code == 200:
+        print("✅ Уведомление реально отправлено")
+    else:
+        print("❌ Ошибка отправки:", resp.text)
 
-# =======================
-# Основной цикл
-# =======================
-async def scheduler():
+# ===== Scheduler =====
+def scheduler():
+    tz = pytz.timezone(TIMEZONE)
     while True:
-        # Текущее время UTC+5
-        now_utc = datetime.utcnow()
-        now = now_utc + timedelta(hours=5)
+        now = datetime.now(tz)
+        weekday = now.strftime("%a")  # Mon, Tue, Wed ...
+        time_str = now.strftime("%H:%M")
+        if weekday in SCHEDULE_DAYS and time_str == SCHEDULE_TIME:
+            send_telegram_message(TEXT)
+            # Ждем 60 секунд, чтобы не отправилось несколько раз в одну минуту
+            time.sleep(60)
+        time.sleep(5)
 
-        current_day = now.strftime("%a")  # 'Mon', 'Tue', 'Wed', ...
-        current_time = now.strftime("%H:%M")
+# ===== Запуск scheduler в отдельном потоке =====
+threading.Thread(target=scheduler, daemon=True).start()
 
-        # Проверяем день и время
-        if current_day in DAYS and current_time == TIME_STR:
-            await send_reminder()
-            await asyncio.sleep(60)  # ждём минуту, чтобы не отправлять повторно
-
-        await asyncio.sleep(10)  # проверяем каждые 10 секунд
-
-
-# =======================
-# Запуск
-# =======================
+# ===== Запуск Flask =====
 if __name__ == "__main__":
-    asyncio.run(scheduler())
+    app.run(host="0.0.0.0", port=10000)
