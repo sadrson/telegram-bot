@@ -9,7 +9,7 @@ BOT_TOKEN = os.environ["BOT_TOKEN"]
 CHAT_ID = os.environ["CHAT_ID"]
 DAYS = ["Wed", "Fri", "Sun"]
 HOUR = 15
-MINUTE = 45
+MINUTE = 57
 TIMEZONE = "Asia/Almaty"
 
 # Инициализация
@@ -52,3 +52,4 @@ def webhook():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
+
