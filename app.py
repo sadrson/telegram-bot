@@ -5,18 +5,18 @@ from telegram import Bot
 from telegram.error import TelegramError
 from apscheduler.schedulers.background import BackgroundScheduler
 import pytz
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # ===== КОНФИГУРАЦИЯ =====
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 TIMEZONE = "Asia/Bishkek"  # UTC+6
 
-# Расписание: Среда, Пятница, Воскресенье в 16:45
+# Расписание: Среда, Пятница, Воскресенье в 16:57
 SCHEDULE_CONFIG = {
     'days': ['wed', 'fri', 'sun'],
     'hour': 16,
-    'minute': 45  # ← ИЗМЕНИЛ НА 45 ДЛЯ ТЕСТА
+    'minute': 57
 }
 
 MESSAGE_TEXTS = {
@@ -40,11 +40,13 @@ logger = logging.getLogger(__name__)
 try:
     bot = Bot(BOT_TOKEN)
     app = Flask(__name__)
+    logger.info("✅ Бот и Flask инициализированы")
 except Exception as e:
-    logger.error(f"Ошибка инициализации: {e}")
+    logger.error(f"❌ Ошибка инициализации: {e}")
     raise
 
 def send_telegram_message(text):
+    """Отправляет сообщение в Telegram"""
     try:
         bot.send_message(
             chat_id=CHAT_ID, 
@@ -52,34 +54,49 @@ def send_telegram_message(text):
             parse_mode='Markdown',
             disable_web_page_preview=False
         )
-        logger.info("Сообщение успешно отправлено")
+        logger.info("✅ Сообщение успешно отправлено в Telegram")
         return True
     except TelegramError as e:
-        logger.error(f"Ошибка Telegram: {e}")
+        logger.error(f"❌ Ошибка Telegram: {e}")
         return False
     except Exception as e:
-        logger.error(f"Неожиданная ошибка: {e}")
+        logger.error(f"❌ Неожиданная ошибка: {e}")
         return False
 
 def send_reminder():
     """Отправляет основное напоминание"""
     current_time = datetime.now(pytz.timezone(TIMEZONE)).strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"🕐 Попытка отправки напоминания в {current_time}")
+    logger.info(f"🕐 ЗАПУСК: Отправка напоминания в {current_time}")
     
     success = send_telegram_message(MESSAGE_TEXTS['reminder'])
     
     if success:
-        logger.info("✅ Напоминание отправлено успешно")
+        logger.info("🎉 Напоминание отправлено успешно!")
     else:
-        logger.error("❌ Не удалось отправить напоминание")
+        logger.error("💥 Не удалось отправить напоминание")
 
 def send_test_message():
+    """Отправляет тестовое сообщение"""
+    logger.info("🧪 Отправка тестового сообщения")
     return send_telegram_message(MESSAGE_TEXTS['test'])
 
 def setup_scheduler():
     """Настраивает и запускает планировщик задач"""
+    logger.info("🔄 Запуск планировщика...")
+    
     scheduler = BackgroundScheduler(timezone=pytz.timezone(TIMEZONE))
     
+    # ТЕСТОВОЕ задание - сработает через 2 минуты после запуска
+    test_time = datetime.now(pytz.timezone(TIMEZONE)) + timedelta(minutes=2)
+    scheduler.add_job(
+        send_reminder,
+        'date',
+        run_date=test_time,
+        id='test_job_2min',
+        name='Тестовое уведомление через 2 минуты'
+    )
+    
+    # ОСНОВНОЕ задание по расписанию
     scheduler.add_job(
         send_reminder,
         'cron',
@@ -87,28 +104,33 @@ def setup_scheduler():
         hour=SCHEDULE_CONFIG['hour'],
         minute=SCHEDULE_CONFIG['minute'],
         id='weekly_reminder',
-        name='Еженедельное напоминание'
+        name='Основное уведомление'
     )
     
     scheduler.start()
     
-    # Логируем запуск
-    logger.info("=" * 50)
-    logger.info("🤖 Планировщик запущен!")
-    logger.info(f"⏰ Расписание: {SCHEDULE_CONFIG['days']} в {SCHEDULE_CONFIG['hour']}:{SCHEDULE_CONFIG['minute']:02d}")
+    # Детальное логирование всех задач
+    logger.info("=" * 60)
+    logger.info("🤖 ПЛАНИРОВЩИК УСПЕШНО ЗАПУЩЕН!")
     logger.info(f"🌍 Часовой пояс: {TIMEZONE}")
+    logger.info(f"⏰ Основное расписание: {SCHEDULE_CONFIG['days']} в {SCHEDULE_CONFIG['hour']}:{SCHEDULE_CONFIG['minute']:02d}")
     
-    # Логируем следующее выполнение
     jobs = scheduler.get_jobs()
+    logger.info(f"📊 Всего активных задач: {len(jobs)}")
+    
     for job in jobs:
-        logger.info(f"📅 Задание: {job.name}")
-        logger.info(f"🔄 Следующий запуск: {job.next_run_time}")
-    logger.info("=" * 50)
+        logger.info(f"🎯 Задача: {job.name}")
+        logger.info(f"   ID: {job.id}")
+        logger.info(f"   Следующий запуск: {job.next_run_time}")
+        logger.info(f"   Триггер: {job.trigger}")
+    
+    logger.info("=" * 60)
     
     return scheduler
 
 @app.route("/")
 def index():
+    """Главная страница - статус бота"""
     return {
         "message": "🤖 Бот уведомлений активен",
         "data": {
@@ -125,28 +147,35 @@ def index():
 
 @app.route("/test", methods=["POST"])
 def test_notification():
+    """Ручка для тестирования уведомления"""
     success = send_test_message()
     if success:
-        return {"message": "Тестовое сообщение отправлено"}, 200
+        return {"message": "✅ Тестовое сообщение отправлено"}, 200
     else:
-        return {"error": "Не удалось отправить тестовое сообщение"}, 500
+        return {"error": "❌ Не удалось отправить тестовое сообщение"}, 500
 
-# Добавим эндпоинт для принудительной отправки
 @app.route("/reminder", methods=["POST"])
 def trigger_reminder():
     """Ручка для принудительной отправки напоминания"""
     success = send_telegram_message(MESSAGE_TEXTS['reminder'])
     if success:
-        return {"message": "Напоминание отправлено"}, 200
+        return {"message": "✅ Напоминание отправлено"}, 200
     else:
-        return {"error": "Не удалось отправить напоминание"}, 500
+        return {"error": "❌ Не удалось отправить напоминание"}, 500
+
+@app.route("/ping")
+def ping():
+    """Простой пинг для мониторинга"""
+    return "pong", 200
 
 if __name__ == "__main__":
     try:
+        logger.info("🚀 Запуск приложения...")
         scheduler = setup_scheduler()
         port = int(os.environ.get("PORT", 10000))
+        logger.info(f"🌐 Flask запускается на порту {port}")
         app.run(host="0.0.0.0", port=port, debug=False)
     except Exception as e:
-        logger.error(f"Фатальная ошибка при запуске: {e}")
+        logger.error(f"💥 Фатальная ошибка при запуске: {e}")
         if 'scheduler' in locals():
             scheduler.shutdown()
