@@ -11,11 +11,13 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID") 
 TIMEZONE = "Asia/Bishkek"  # UTC+6
 
-# Расписание: Каждый день в 09:30
+# Расписание: Среда, Пятница, Воскресенье в 10:30 и 15:30
 SCHEDULE_CONFIG = {
-    'days': ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
-    'hour': 9,
-    'minute': 30
+    'days': ['wed', 'fri', 'sun'],
+    'times': [
+        {'hour': 10, 'minute': 30},  # 10:30
+        {'hour': 15, 'minute': 30}   # 15:30
+    ]
 }
 
 MESSAGE_TEXTS = {
@@ -66,29 +68,48 @@ def setup_scheduler():
     """Настраивает планировщик"""
     scheduler = BackgroundScheduler(timezone=pytz.timezone(TIMEZONE))
     
-    # Основное расписание - КАЖДЫЙ ДЕНЬ в 09:30
-    scheduler.add_job(
-        send_reminder,
-        'cron',
-        day_of_week=','.join(SCHEDULE_CONFIG['days']),
-        hour=SCHEDULE_CONFIG['hour'],
-        minute=SCHEDULE_CONFIG['minute'],
-        id='daily_reminder'
-    )
+    # Создаем две задачи для каждого времени
+    for i, time_config in enumerate(SCHEDULE_CONFIG['times']):
+        scheduler.add_job(
+            send_reminder,
+            'cron',
+            day_of_week=','.join(SCHEDULE_CONFIG['days']),
+            hour=time_config['hour'],
+            minute=time_config['minute'],
+            id=f'reminder_{i}',
+            name=f'Уведомление в {time_config["hour"]:02d}:{time_config["minute"]:02d}'
+        )
     
     scheduler.start()
-    logger.info(f"🤖 Планировщик запущен: КАЖДЫЙ ДЕНЬ в {SCHEDULE_CONFIG['hour']:02d}:{SCHEDULE_CONFIG['minute']:02d}")
     
-    # Логируем следующее выполнение
+    # Логируем расписание
+    logger.info("🤖 Планировщик запущен!")
+    logger.info(f"📅 Дни: {SCHEDULE_CONFIG['days']}")
+    for time_config in SCHEDULE_CONFIG['times']:
+        logger.info(f"⏰ Время: {time_config['hour']:02d}:{time_config['minute']:02d}")
+    
+    # Логируем следующие выполнения
     jobs = scheduler.get_jobs()
     for job in jobs:
-        logger.info(f"🎯 Следующий запуск: {job.next_run_time}")
+        logger.info(f"🎯 {job.name} - Следующий запуск: {job.next_run_time}")
     
     return scheduler
 
 @app.route("/")
 def home():
-    return "🤖 Бот уведомлений активен"
+    """Главная страница с информацией о расписании"""
+    schedule_info = []
+    for time_config in SCHEDULE_CONFIG['times']:
+        schedule_info.append(f"{time_config['hour']:02d}:{time_config['minute']:02d}")
+    
+    return {
+        "message": "🤖 Бот уведомлений активен",
+        "schedule": {
+            "days": SCHEDULE_CONFIG['days'],
+            "times": schedule_info,
+            "timezone": TIMEZONE
+        }
+    }
 
 @app.route("/test", methods=["POST"])
 def test_notification():
