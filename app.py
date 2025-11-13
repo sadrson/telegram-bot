@@ -11,11 +11,11 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID") 
 TIMEZONE = "Asia/Bishkek"  # UTC+6
 
-# Расписание: Каждый день в 08:00
+# Расписание: Каждый день в 08:30
 SCHEDULE_CONFIG = {
-    'days': ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],  # ВСЕ ДНИ
-    'hour': 8,  # 08:00
-    'minute': 0
+    'days': ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
+    'hour': 8,
+    'minute': 30
 }
 
 MESSAGE_TEXTS = {
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 def send_telegram_message(text):
-    """Отправляет сообщение в Telegram через HTTP API (как в Replit)"""
+    """Отправляет сообщение в Telegram через HTTP API"""
     try:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         data = {
@@ -66,7 +66,7 @@ def setup_scheduler():
     """Настраивает планировщик"""
     scheduler = BackgroundScheduler(timezone=pytz.timezone(TIMEZONE))
     
-    # Основное расписание - КАЖДЫЙ ДЕНЬ в 08:00
+    # Основное расписание - КАЖДЫЙ ДЕНЬ в 08:30
     scheduler.add_job(
         send_reminder,
         'cron',
