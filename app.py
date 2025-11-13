@@ -11,10 +11,10 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID") 
 TIMEZONE = "Asia/Bishkek"  # UTC+6
 
-# Расписание: Каждый день в 08:30
+# Расписание: Каждый день в 09:30
 SCHEDULE_CONFIG = {
     'days': ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
-    'hour': 8,
+    'hour': 9,
     'minute': 30
 }
 
@@ -66,7 +66,7 @@ def setup_scheduler():
     """Настраивает планировщик"""
     scheduler = BackgroundScheduler(timezone=pytz.timezone(TIMEZONE))
     
-    # Основное расписание - КАЖДЫЙ ДЕНЬ в 08:30
+    # Основное расписание - КАЖДЫЙ ДЕНЬ в 09:30
     scheduler.add_job(
         send_reminder,
         'cron',
