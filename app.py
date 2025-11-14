@@ -3,7 +3,7 @@ import logging
 from flask import Flask
 import requests
 import pytz
-from datetime import datetime
+from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 
 # ===== КОНФИГУРАЦИЯ =====
@@ -68,7 +68,17 @@ def setup_scheduler():
     """Настраивает планировщик"""
     scheduler = BackgroundScheduler(timezone=pytz.timezone(TIMEZONE))
     
-    # Создаем две задачи для каждого времени
+    # ТЕСТ: задание через 5 минут
+    test_time = datetime.now(pytz.timezone(TIMEZONE)) + timedelta(minutes=5)
+    scheduler.add_job(
+        send_reminder,
+        'date',
+        run_date=test_time,
+        id='test_job_5min',
+        name='Тестовое уведомление через 5 минут'
+    )
+    
+    # Основные задания по расписанию
     for i, time_config in enumerate(SCHEDULE_CONFIG['times']):
         scheduler.add_job(
             send_reminder,
@@ -82,14 +92,15 @@ def setup_scheduler():
     
     scheduler.start()
     
-    # Логируем расписание
+    # Детальное логирование
     logger.info("🤖 Планировщик запущен!")
     logger.info(f"📅 Дни: {SCHEDULE_CONFIG['days']}")
     for time_config in SCHEDULE_CONFIG['times']:
         logger.info(f"⏰ Время: {time_config['hour']:02d}:{time_config['minute']:02d}")
     
-    # Логируем следующие выполнения
+    # Логируем ВСЕ задачи
     jobs = scheduler.get_jobs()
+    logger.info(f"📊 Всего задач: {len(jobs)}")
     for job in jobs:
         logger.info(f"🎯 {job.name} - Следующий запуск: {job.next_run_time}")
     
